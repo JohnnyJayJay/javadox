@@ -48,7 +48,7 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
 
   private fun Elements.parseDetails(typeUri: String, id: String): List<DocumentedMember> {
     val details = select("a[id=$id]").first()?.parent() ?: return emptyList()
-    return details.select("a + ul").asSequence()
+    return details.select("a + ul")
         .map {
           val a = it.previousElementSibling()
           val name = (if (a.hasAttr("name")) a.attr("name") else a.attr("id"))
@@ -59,7 +59,7 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
           val tags = it.selectFirst("dl")?.parseTags() ?: mutableListOf()
           val deprecation = it.parseDeprecation()
           DocumentedMember(uri, name, declaration, description, deprecation, tags)
-        }.toList()
+        }
   }
 
   private fun Element.parseDeprecation(): String? {
