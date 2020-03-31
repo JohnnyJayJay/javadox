@@ -18,7 +18,7 @@ internal class JavadocsTest {
 
   @Test
   internal fun testParsing() {
-    val type = javadocs.find("java.util", "Optional").first()
+    val type = javadocs.find("java.util", "List").first()
     type.methods.map { it.name }.forEach(::println)
   }
 }
