@@ -10,16 +10,17 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
       = document.apply(Document::replaceRelativeUris).extractType()
 
   private fun Document.extractType(): DocumentedType {
-    val packageTag = selectFirst("body > main > div.header span.packageLabelInType + a[href]")
-    val `package` = htmlConverter(packageTag.outerHtml())
-    val packageUri = packageTag.attr("href")
-    val typeTitle = selectFirst("body > main > div.header > h2").text()
+    val packageTag = select("body div.header > div.subTitle").last()
+    packageTag?.selectFirst("span.packageLabelInType")?.remove()
+    val `package` = htmlConverter(packageTag?.html() ?: "")
+    val packageUri = packageTag?.selectFirst("a[href]")?.absUrl("href") ?: ""
+    val typeTitle = selectFirst("body div.header > h2").text()
     val name = typeTitle.substringAfter(' ')
     val type = typeTitle.substringBefore(' ')
     val uri = "${packageUri.substringBeforeLast('/')}/${name.substringBefore('<')}.html"
     val inheritanceUl = selectFirst("body > main > div.contentContainer > ul.inheritance")
     val inheritance = inheritanceUl?.parseInheritance() ?: emptyList()
-    val descriptionBlock = selectFirst("body > main > div.contentContainer > div.description > ul > li")
+    val descriptionBlock = selectFirst("body div.contentContainer > div.description > ul > li")
     val description = htmlConverter(descriptionBlock.selectFirst("div.block")?.html() ?: "")
     val declaration = htmlConverter(descriptionBlock.selectFirst("pre").outerHtml())
     val topTags = descriptionBlock.children().asSequence()
@@ -30,7 +31,7 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
     val bottomTags = descriptionBlock.selectFirst("div.block + dl")?.parseTags() ?: mutableListOf()
     val inheritedMethodsList = select("body > main > div.contentContainer > div.summary > ul > li table.memberSummary ~ ul.blocklist")
     val inheritedMethods = inheritedMethodsList.parseInheritedMethods()
-    val details = selectFirst("body > main > div.contentContainer > div.details > ul > li")
+    val details = selectFirst("body div.contentContainer > div.details > ul > li")
     val sections = if (details.selectFirst("section") != null) {
       details.select("section > ul > li")
     } else {
@@ -47,7 +48,8 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
   }
 
   private fun Elements.parseDetails(typeUri: String, id: String): List<DocumentedMember> {
-    val details = select("a[id=$id]").first()?.parent() ?: return emptyList()
+    val details = select("a[id=$id], a[name=$id], a[name=${id.replace('.', '_')}]").first()
+        ?.parent() ?: return emptyList()
     return details.select("a + ul")
         .map {
           val a = it.previousElementSibling()
