@@ -15,14 +15,15 @@ class Javadocs(
   fun find(`package`: String = "", type: String): Sequence<DocumentedType> {
     val typeHref = buildString {
       if (`package`.isNotBlank()) {
-        append(`package`.replace('.', '/'))
+        append(`package`.replace('.', '/').toLowerCase())
         append('/')
       }
-      append(type)
+      append(type.toLowerCase())
       append(".html")
     }
-    val elements = allClasses.select("a[href$=$typeHref]")
+    val elements = allClasses.select("a[href]")
     return elements.asSequence()
+        .filter { it.absUrl("href").toLowerCase().endsWith(typeHref) }
         .map { scrape(it.absUrl("href")) }
         .map { parser.parse(it) }
   }
