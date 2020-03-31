@@ -9,7 +9,7 @@ class Javadocs(
     private val scrape: (String) -> Document
 ) {
 
-  private val allClasses = scrape(allClasses)
+  private val allClasses = scrape(allClasses).selectFirst("body div.contentContainer")
   private val index = index?.also { scrape(it) }
 
   fun find(`package`: String = "", type: String): Sequence<DocumentedType> {

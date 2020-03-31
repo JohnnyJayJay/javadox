@@ -12,13 +12,13 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
   private fun Document.extractType(): DocumentedType {
     val packageTag = select("body div.header > div.subTitle").last()
     packageTag?.selectFirst("span.packageLabelInType")?.remove()
-    val `package` = htmlConverter(packageTag?.html() ?: "")
+    val `package` = htmlConverter(packageTag?.html() ?: "").trim()
     val packageUri = packageTag?.selectFirst("a[href]")?.absUrl("href") ?: ""
     val typeTitle = selectFirst("body div.header > h2").text()
     val name = typeTitle.substringAfter(' ')
     val type = typeTitle.substringBefore(' ')
     val uri = "${packageUri.substringBeforeLast('/')}/${name.substringBefore('<')}.html"
-    val inheritanceUl = selectFirst("body > main > div.contentContainer > ul.inheritance")
+    val inheritanceUl = selectFirst("body div.contentContainer > ul")
     val inheritance = inheritanceUl?.parseInheritance() ?: emptyList()
     val descriptionBlock = selectFirst("body div.contentContainer > div.description > ul > li")
     val description = htmlConverter(descriptionBlock.selectFirst("div.block")?.html() ?: "")

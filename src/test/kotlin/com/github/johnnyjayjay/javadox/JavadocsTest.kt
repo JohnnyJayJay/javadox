@@ -11,14 +11,14 @@ internal class JavadocsTest {
   @BeforeEach
   internal fun setUp() {
     javadocs = Javadocs(
-        allClasses = "https://helpch.at/docs/1.8.8/allclasses-noframe.html",
+        allClasses = "https://docs.oracle.com/en/java/javase/12/docs/api/overview-tree.html",
         parser = JavadocParser()
     ) { Jsoup.connect(it).userAgent("Mozilla").get() }
   }
 
   @Test
   internal fun testParsing() {
-    val type = javadocs.find( type = "Achievement").first()
+    val type = javadocs.find(type = "List").first()
     type.methods.map { it.name }.forEach(::println)
   }
 }
