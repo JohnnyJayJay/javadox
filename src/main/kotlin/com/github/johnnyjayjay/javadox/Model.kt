@@ -9,6 +9,7 @@ data class DocumentedType(
     val topTags: List<Pair<String, List<String>>>,
     val declaration: String,
     val description: String,
+    val deprecation: String?,
     val bottomTags: List<Pair<String, List<String>>>,
     val inheritedMethods: Map<String, List<String>>,
     val enumConstants: List<DocumentedMember>,
@@ -22,5 +23,6 @@ data class DocumentedMember(
     val name: String,
     val declaration: String,
     val description: String,
+    val deprecation: String?,
     val tags: List<Pair<String, List<String>>>
 )

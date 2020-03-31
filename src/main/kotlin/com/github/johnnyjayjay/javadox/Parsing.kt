@@ -10,7 +10,7 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
       = document.apply(Document::replaceRelativeUris).extractType()
 
   private fun Document.extractType(): DocumentedType {
-    val packageTag = selectFirst("body > main > div.header span.packageInLabelType + a[href]")
+    val packageTag = selectFirst("body > main > div.header span.packageLabelInType + a[href]")
     val `package` = htmlConverter(packageTag.outerHtml())
     val packageUri = packageTag.attr("href")
     val typeTitle = selectFirst("body > main > div.header > h2").text()
@@ -41,22 +41,24 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
     val constructors = sections.parseDetails(uri, "constructor.detail")
     val methods = sections.parseDetails(uri, "method.detail")
     return DocumentedType(
-        `package`, uri, type, name, inheritance, topTags, declaration, description,
+        `package`, uri, type, name, inheritance, topTags, declaration, description, deprecation,
         bottomTags, inheritedMethods, enumConstants, fields, constructors, methods
     )
   }
 
   private fun Elements.parseDetails(typeUri: String, id: String): List<DocumentedMember> {
-    val enumDetail = select("a#$id").first()?.parent() ?: return emptyList()
-    return enumDetail.select("a[name] + ul").asSequence()
-        .map { it.selectFirst("ul > li") }
+    val details = select("a[id=$id]").first()?.parent() ?: return emptyList()
+    return details.select("a + ul").asSequence()
         .map {
-          val name = it.previousElementSibling().id()
+          val a = it.previousElementSibling()
+          val name = (if (a.hasAttr("name")) a.attr("name") else a.attr("id"))
+            .replaceFirst('-', '(').replace('-', ')')
           val uri = "$typeUri#${name.replace('(', '-').replace(')', '-')}"
           val declaration = htmlConverter(it.selectFirst("pre").outerHtml())
           val description = htmlConverter(it.selectFirst("div.block")?.html() ?: "")
           val tags = it.selectFirst("dl")?.parseTags() ?: mutableListOf()
-          DocumentedMember(uri, name, declaration, description, tags)
+          val deprecation = it.parseDeprecation()
+          DocumentedMember(uri, name, declaration, description, deprecation, tags)
         }.toList()
   }
 
@@ -97,7 +99,7 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
     }
     var currentTag = iterator.next()
     var currentTagValues = mutableListOf<String>()
-    do {
+    while (iterator.hasNext()) {
       val child = iterator.next()
       when (child.tagName()) {
         "dt" -> {
@@ -107,7 +109,8 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
         }
         "dd" -> currentTagValues.add(htmlConverter(child.html()))
       }
-    } while (iterator.hasNext());
+    }
+    result.add(currentTag.text() to currentTagValues)
     return result
   }
 }
