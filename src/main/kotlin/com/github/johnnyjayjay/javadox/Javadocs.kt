@@ -1,6 +1,7 @@
 package com.github.johnnyjayjay.javadox
 
 import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
 
 class Javadocs(
     tree: String,
@@ -9,8 +10,10 @@ class Javadocs(
     private val scrape: (String) -> Document
 ) {
 
-  private val tree = scrape(tree).selectFirst("body .contentContainer")
-  private val index = index?.also { scrape(it) }
+  private val tree = scrape(tree)
+      .selectFirst("body .contentContainer")
+      .apply(Element::replaceRelativeUris)
+  private val index = index?.let(scrape)?.apply(Document::replaceRelativeUris)
 
   fun find(`package`: String = "", type: String): Sequence<DocumentedType> {
     val typeHref = buildString {
