@@ -2,8 +2,11 @@ package com.github.johnnyjayjay.javadox
 
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
 import org.jsoup.select.Elements
+import kotlin.streams.asStream
 
+// TODO different implementatiions based on javadoc version
 class JavadocParser(val htmlConverter: (String) -> String = { it }) {
 
   fun parse(document: Document)
@@ -14,26 +17,27 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
     packageTag?.selectFirst("span.packageLabelInType")?.remove()
     val `package` = htmlConverter(packageTag?.html() ?: "").trim()
     val packageUri = packageTag?.selectFirst("a[href]")?.absUrl("href") ?: ""
-    val typeTitle = selectFirst("body div.header > h2").text()
+    val typeTitle = selectFirst("body div.header > h2, body div.header > h1").text()
     val name = typeTitle.substringAfter(' ')
     val type = typeTitle.substringBefore(' ')
     val uri = "${packageUri.substringBeforeLast('/')}/${name.substringBefore('<')}.html"
-    val inheritanceUl = selectFirst("body div.contentContainer > ul")
+    val inheritanceUl = selectFirst("body .contentContainer > .inheritance")
     val inheritance = inheritanceUl?.parseInheritance() ?: emptyList()
-    val descriptionBlock = selectFirst("body div.contentContainer > div.description > ul > li")
+    val descriptionBlock = selectFirst("body div.contentContainer > .description")
     val description = htmlConverter(descriptionBlock.selectFirst("div.block")?.html() ?: "")
     val declaration = htmlConverter(descriptionBlock.selectFirst("pre").outerHtml())
-    val topTags = descriptionBlock.children().asSequence()
-        .takeWhile { it.tagName() == "dl" }
+    val topTags = descriptionBlock.select("dl").stream()
         .map { it.parseTags() }
-        .reduce { acc, mutableList -> acc.apply { addAll(mutableList) } }
+        .reduce(mutableListOf()) { one, two -> one.apply { addAll(two) } }
     val deprecation = descriptionBlock.parseDeprecation()
     val bottomTags = descriptionBlock.selectFirst("div.block + dl")?.parseTags() ?: mutableListOf()
-    val inheritedMethodsList = select("body > main > div.contentContainer > div.summary > ul > li table.memberSummary ~ ul.blocklist")
+    val inheritedMethodsList = select("body div.contentContainer > .summary > ul > li table.memberSummary ~ ul.blocklist")
     val inheritedMethods = inheritedMethodsList.parseInheritedMethods()
-    val details = selectFirst("body div.contentContainer > div.details > ul > li")
-    val sections = if (details.selectFirst("section") != null) {
-      details.select("section > ul > li")
+    val details = selectFirst("body div.contentContainer > .details")
+    val sections = if (details.selectFirst("ul > li > section") != null) {
+      details.select("> ul > li > section")
+    } else if (details.selectFirst("section") != null) {
+      details.select("> ul > li section > ul > li")
     } else {
       details.select("> ul > li")
     }
@@ -50,18 +54,22 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
   private fun Elements.parseDetails(typeUri: String, id: String): List<DocumentedMember> {
     val details = select("a[id=$id], a[name=$id], a[name=${id.replace('.', '_')}]").first()
         ?.parent() ?: return emptyList()
-    return details.select("a + ul")
+    return details.select("a[id], a[name]")
         .map {
-          val a = it.previousElementSibling()
-          val name = (if (a.hasAttr("name")) a.attr("name") else a.attr("id"))
+          val name = (if (it.hasAttr("name")) it.attr("name") else it.attr("id"))
             .replaceFirst('-', '(').replace('-', ')')
+          if (name == id || name == id.replace('.', '_')) {
+            return@map null
+          }
+          val detail = it.parent().let { if (it.tagName() == "h3") it.parent() else it }
           val uri = "$typeUri#${name.replace('(', '-').replace(')', '-')}"
-          val declaration = htmlConverter(it.selectFirst("pre").outerHtml())
-          val description = htmlConverter(it.selectFirst("div.block")?.html() ?: "")
-          val tags = it.selectFirst("dl")?.parseTags() ?: mutableListOf()
-          val deprecation = it.parseDeprecation()
+          val declaration = htmlConverter((detail.selectFirst("pre") ?: detail.selectFirst(".memberSignature")).outerHtml())
+          val description = htmlConverter(detail.selectFirst("div.block")?.html() ?: "")
+          val tags = detail.selectFirst("dl")?.parseTags() ?: mutableListOf()
+          val deprecation = detail.parseDeprecation()
           DocumentedMember(uri, name, declaration, description, deprecation, tags)
         }
+        .filterNotNull()
   }
 
   private fun Element.parseDeprecation(): String? {
@@ -83,13 +91,18 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
     return map
   }
 
+  // FIXME 12
   private fun Element.parseInheritance(): List<String> {
     val list = mutableListOf<String>()
-    var current = selectFirst("li")
-    while (current != null) {
-      list.add(htmlConverter(current.html()))
-      current = current.selectFirst("li > ul.inheritance > li")
-    }
+    html(html().trim())
+    var current = childNode(0)
+    do  {
+      list.add(htmlConverter(current.outerHtml()).trim())
+      if (current !is Element)
+        break
+      current.html(current.html().trim())
+      current = current.parent().select(".inheritance").last().childNode(0)
+    } while (current != null);
     return list
   }
 
