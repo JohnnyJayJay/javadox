@@ -11,7 +11,7 @@ internal class JavadocsTest {
   @BeforeEach
   internal fun setUp() {
     javadocs = Javadocs(
-        tree = "https://docs.oracle.com/javase/10/docs/api/allclasses-noframe.html",
+        tree = "https://cr.openjdk.java.net/~iris/se/10/latestSpec/api/overview-tree.html",
         parser = JavadocParser()
     ) { Jsoup.connect(it).userAgent("Mozilla").get() }
   }
