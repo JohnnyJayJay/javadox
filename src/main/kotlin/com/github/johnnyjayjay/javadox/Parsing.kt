@@ -47,28 +47,40 @@ class JavadocParser(val htmlConverter: (String) -> String = { it }) {
         )
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     private fun Elements.parseDetails(typeUri: String, id: String): List<DocumentedMember> {
         val details = select("a[id=$id], a[name=$id], a[name=${id.replace('.', '_')}]").first()
             ?.parent() ?: return emptyList()
-        return details.select("a[id], a[name]")
-            .mapIndexed { index, it ->
+        // block: codeblocks inside of descriptions like here https://cr.openjdk.java.net/~iris/se/10/latestSpec/api/java/util/List.html#toArray(T%5B%5D)
+        // but since those always are wrapped in a block container we cann simply ignore those
+        val declarations = details.select("pre").filter { "blockList" in it.parent().classNames() }
+        return details.select("a[id], a[name], ul")
+            // Stupid oracle decided it would be clever to always put an a for Object and generic type above methods with generic type so we only care about first a thing
+            .scanReduce { previous, next ->
+                if(next.tagName() != "a") return@scanReduce next
+                val previousName = (previous?.attr("id") ?: previous?.attr("name"))?.substringBefore('(') //only get name
+                val nextName = (next.attr("id") ?: next.attr("name")).substringBefore('(')
+                if (!previousName.isNullOrBlank() && nextName.startsWith(previousName)) return@scanReduce null
+                next
+            }
+            .mapIndexedNotNull { index, it ->
+                if (it == null || it.tagName() == "ul") return@mapIndexedNotNull null
                 val name = (if (it.hasAttr("name")) it.attr("name") else it.attr("id"))
                     .replaceFirst('-', '(').replace('-', ')')
-                if (name == id || name == id.replace('.', '_')) {
-                    return@mapIndexed null
-                }
+                if (name == id || name == id.replace('.', '_')) null
+                else it to name
+            }
+            .mapIndexed { index, (it, name) ->
                 val detail = it.parent().let { if (it.tagName() == "h3") it.parent() else it }
                 val uri = "$typeUri#${name.replace('(', '-').replace(')', '-')}"
-                val cleanIndex = index - 1 // Don't know why but it seems to be shifted for some reason
                 val declaration =
-                    (detail.select("pre").getOrNull(cleanIndex) ?: detail.selectFirst(".memberSignature"))?.outerHtml()
+                    (declarations.getOrNull(index) ?: detail.selectFirst(".memberSignature"))?.outerHtml()
                         ?.let(htmlConverter) ?: ""
-                val description = detail.select("div.block").getOrNull(cleanIndex)?.html()?.let(htmlConverter) ?: ""
-                val tags = detail.select("dl").getOrNull(cleanIndex)?.parseTags() ?: mutableListOf()
+                val description = detail.select("div.block").getOrNull(index)?.html()?.let(htmlConverter) ?: ""
+                val tags = detail.select("dl").getOrNull(index)?.parseTags() ?: mutableListOf()
                 val deprecation = detail.parseDeprecation()
                 DocumentedMember(uri, name, declaration, description, deprecation, tags)
             }
-            .filterNotNull()
     }
 
     private fun Element.parseDeprecation(): String? {
