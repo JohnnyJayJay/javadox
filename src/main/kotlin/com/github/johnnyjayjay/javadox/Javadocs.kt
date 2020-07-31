@@ -10,29 +10,31 @@ class Javadocs(
     private val scrape: (String) -> Document
 ) {
 
-  private val tree = scrape(tree)
-      .selectFirst("body .contentContainer")
-      .apply(Element::replaceRelativeUris)
-  private val index = index?.let(scrape)?.apply(Document::replaceRelativeUris)
-
-  fun find(`package`: String = "", type: String): Sequence<DocumentedType> {
-    val typeHref = buildString {
-      if (`package`.isNotBlank()) {
-        append(`package`.replace('.', '/').toLowerCase())
-      }
-      append('/')
-      append(type.toLowerCase())
-      append(".html")
+    init {
+        require(index == null) { "Currently only the tree parameter is supported" }
     }
-    val elements = tree.select("a[href]")
-    return elements.asSequence()
-        .filter { it.absUrl("href").toLowerCase().endsWith(typeHref) }
-        .map { scrape(it.absUrl("href")) }
-        .map { parser.parse(it) }
-  }
 
-  fun search(query: String): Sequence<String> {
-    TODO()
-  }
+    private val tree = scrape(tree)
+        .selectFirst("body .contentContainer")
+        .apply(Element::replaceRelativeUris)
+    private val index = index?.let(scrape)?.apply(Document::replaceRelativeUris)
+
+    fun find(`package`: String = "", type: String): Sequence<DocumentedType> {
+        val typeHref = buildString {
+            if (`package`.isNotBlank()) {
+                append(`package`.replace('.', '/').toLowerCase())
+            }
+            append('/')
+            append(type.toLowerCase())
+            append(".html")
+        }
+        val elements = tree.select("a[href]")
+        return elements.asSequence()
+            .filter { it.absUrl("href").toLowerCase().endsWith(typeHref) }
+            .map { scrape(it.absUrl("href")) }
+            .map { parser.parse(it) }
+    }
+
+    fun search(query: String): Sequence<String> = TODO()
 
 }
